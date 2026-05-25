@@ -1413,17 +1413,52 @@
     // DEVTOOLS, NETWORK, STORAGE, SYNTHETIC
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     
-    FraudDetectionV12.prototype.detectDevTools = function() {
+    FraudDetectionV12.prototype.detectDevTools = function () {
       var result = {
         enabled: this.options.enableDevTools,
         isOpen: false,
-        isSuspicious: false
+        isSuspicious: false,
+        skippedReason: null
       };
-      var widthDiff = window.outerWidth - window.innerWidth > 160;
-      var heightDiff = window.outerHeight - window.innerHeight > 160;
-      if (widthDiff || heightDiff) {
-        result.isOpen = true;
+
+      if (!this.options.enableDevTools) {
+        return result;
       }
+
+      var ua = navigator.userAgent || "";
+
+      // Real mobile/tablet detection
+      var isMobileOrTablet =
+        /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini|Tablet/i.test(ua);
+
+      // iPad desktop mode fix
+      var isIPadDesktopMode =
+        navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+
+      // Embedded webview detection
+      var isWebView =
+        /wv/.test(ua) ||
+        /WebView/i.test(ua) ||
+        /(iPhone|iPod|iPad).*AppleWebKit(?!.*Safari)/i.test(ua);
+
+      if (isMobileOrTablet || isIPadDesktopMode || isWebView) {
+        result.skippedReason = "unsupported_environment";
+        return result;
+      }
+
+      try {
+        var widthDiff = window.outerWidth - window.innerWidth;
+        var heightDiff = window.outerHeight - window.innerHeight;
+
+        // Docked devtools usually causes big viewport difference
+        if (widthDiff > 180 || heightDiff > 180) {
+          result.isOpen = true;
+          result.isSuspicious = true;
+        }
+      } catch (err) {
+        console.warn("DevTools detection failed:", err);
+      }
+
       return result;
     };
     
